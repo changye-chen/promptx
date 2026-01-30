@@ -1,0 +1,62 @@
+{
+  // Python 配置
+  "python.defaultInterpreterPath": "${workspaceFolder}/env/bin/python",
+  "python.linting.enabled": true,
+  "python.linting.pylintEnabled": false,
+  "python.linting.flake8Enabled": true,
+  "python.formatting.provider": "black",
+
+  // 排除文件和目录（不显示在文件资源管理器）
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/*.pyc": true,
+    "**/.pytest_cache": true,
+    "**/.ipynb_checkpoints": true,
+    "**/node_modules": true
+  },
+
+  // 搜索时排除的目录
+  "search.exclude": {
+    "**/__pycache__": true,
+    "**/*.pyc": true,
+    "**/env": true,
+    "**/venv": true,
+    "**/.venv": true
+  },
+
+  // 监视文件时排除的目录
+  "files.watcherExclude": {
+    "**/__pycache__/**": true,
+    "**/env/**": true,
+    "**/venv/**": true,
+    "**/.venv/**": true
+  },
+
+  // Jupyter Notebook
+  "jupyter.askForKernelRestart": false,
+  "notebook.formatOnSave": true,
+
+  // 编辑器配置
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": "explicit"
+  },
+  "editor.rulers": [88],
+
+  // Python 测试
+  "python.testing.pytestEnabled": true,
+  "python.testing.pytestArgs": ["tests/"],
+
+  // 语言特定配置
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.python",
+    "editor.formatOnSave": true
+  },
+  "[json]": {
+    "editor.defaultFormatter": "vscode.json-language-features"
+  },
+  "[markdown]": {
+    "editor.formatOnSave": true,
+    "editor.wordWrap": "on"
+  }
+}
