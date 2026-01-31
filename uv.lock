@@ -2203,6 +2203,7 @@ dependencies = [
     { name = "langchain-deepseek" },
     { name = "langchain-openai" },
     { name = "langfuse" },
+    { name = "prompt-toolkit" },
     { name = "python-dotenv" },
 ]
 
@@ -2215,6 +2216,7 @@ requires-dist = [
     { name = "langchain-deepseek", specifier = ">=1.0.1" },
     { name = "langchain-openai", specifier = ">=1.1.7" },
     { name = "langfuse", specifier = ">=3.12.1" },
+    { name = "prompt-toolkit", specifier = ">=3.0.52" },
     { name = "python-dotenv", specifier = ">=1.2.1" },
 ]
 

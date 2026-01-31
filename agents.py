@@ -8,12 +8,15 @@ import os
 from typing import Any, Iterator, Tuple
 
 from deepagents import create_deep_agent
-from deepagents.backends import CompositeBackend, FilesystemBackend, StateBackend
+from deepagents.backends import CompositeBackend, FilesystemBackend, StateBackend, StoreBackend
 from dotenv import load_dotenv
 from langchain_core.messages import AIMessage, AIMessageChunk, ToolMessage
 from langchain_deepseek import ChatDeepSeek
 from langfuse.langchain import CallbackHandler
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.graph.state import CompiledStateGraph
 from langgraph.store.memory import InMemoryStore
+from prompt_toolkit import PromptSession
 
 from toolkits import FileBasedPromptToolkit
 
@@ -32,7 +35,7 @@ def print_stream(stream: Iterator[Tuple[str, Any]]) -> None:
 
     for mode, chunk in stream:
         if mode == "messages":
-            msg, metadata = chunk
+            msg, _ = chunk  # metadata 未使用，用 _ 忽略
 
             # AI 消息（智能体思考过程）
             if isinstance(msg, (AIMessage, AIMessageChunk)):
@@ -82,7 +85,7 @@ def get_deepseek_model():
     return ChatDeepSeek(api_key=api_key, model="deepseek-chat")
 
 
-def create_file_based_prompt_agent(model=None, work_dir: str = "memories") -> Any:
+def create_file_based_prompt_agent(model=None, work_dir: str = "memories") -> CompiledStateGraph:
     """
     创建基于文件系统的提示词生成 Agent
 
@@ -90,6 +93,7 @@ def create_file_based_prompt_agent(model=None, work_dir: str = "memories") -> An
     - 中间结果可查看、可编辑
     - 工作流可中断恢复
     - 人工介入调整
+    - 对话历史记忆（通过 checkpointer）
 
     路径系统：
     - Agent 内部：使用相对路径（如 "requirement.txt"）
@@ -114,6 +118,9 @@ def create_file_based_prompt_agent(model=None, work_dir: str = "memories") -> An
 
     prompt_toolkit = FileBasedPromptToolkit(model=model, work_dir=real_work_dir)
 
+    # 创建 checkpointer 实现对话记忆
+    checkpointer = MemorySaver()
+
     agent = create_deep_agent(
         name="file-prompt-agent",
         model=model,
@@ -128,58 +135,25 @@ def create_file_based_prompt_agent(model=None, work_dir: str = "memories") -> An
                 ),
             },
         ),
-        system_prompt=f"""你是一个提示词生成专家，使用基于文件系统的状态机工作流。
+        checkpointer=checkpointer,  # 启用对话历史记忆
+        system_prompt=f"""你是一个提示词生成专家助手，使用基于文件系统的状态机工作流。
 
-## 状态机工作流
+   ## 核心角色
+   提示词生成专家助手，使用基于文件系统的状态机工作流。
 
-工作目录：`/memories/workspace/`（持久化到磁盘）
+   ## 工作目录
+   /memories/workspace/（持久化到磁盘）
 
-标准流程（按顺序执行）：
+   ## 标准流程
+   1. 准备需求 → requirement.txt
+   2. 生成规格 → prompt_architect_file() → analysis.json
+   3. 生成测试 → data_generator_file() → test_data.json
+   4. 生成提示 → prompt_builder_file() → final_prompt.json
 
-**步骤 1：准备需求**
-```
-write_file("requirement.txt", "<用户需求>")
-```
-
-**步骤 2：生成技术规格**
-```
-prompt_architect_file()
-```
-→ 读取 requirement.txt → 写入 analysis.json
-
-**步骤 3：生成测试数据**
-```
-data_generator_file(num=5)
-```
-→ 读取 analysis.json → 写入 test_data.json
-
-**步骤 4：生成最终提示词**
-```
-prompt_builder_file()
-```
-→ 读取 analysis.json + test_data.json → 写入 final_prompt.json
-
-## 工具说明
-
-### 提示词工程工具（无参数）
-- `prompt_architect_file()` - 生成技术规格
-- `data_generator_file(num=3)` - 生成测试数据
-- `prompt_builder_file()` - 生成最终提示词
-
-### 辅助工具
-- `ls`、`read_file`、`write_file`、`edit_file` - 查看和编辑文件
-- `web_search`、`web_reader` - 联网搜索和阅读
-
-## 工作原则
-
-1. **全自动执行**：无需与用户交流，直接使用工具完成任务
-2. **按顺序调用**：严格按照步骤 1→2→3→4 执行
-3. **检查中间结果**：每步完成后可用 `read_file` 查看输出
-4. **灵活调整**：如发现问题可用 `edit_file` 修改后继续
-
-## 磁盘映射
-
-`/memories/workspace/` → `{real_work_dir}/workspace/`
+   ## 交互原则
+   - 先交流理解需求，再执行
+   - 按步骤执行，展示中间结果
+   - 根据反馈灵活调整
 """,
     )
 
@@ -190,13 +164,44 @@ if __name__ == "__main__":
     deepseek = get_deepseek_model()
     agent = create_file_based_prompt_agent(model=deepseek)
 
-    # 测试流式输出
-    user_input = "请帮我生成一个提示词，我将视频通过ASR转换为文本。但是文本中有很多识别错误。请帮我生成一个提示词，能帮我纠正这些ASR错误。并梳理成一个视频内容的总结报告,输出为Markdown格式的文本即可,不需要结构化数据。,输入也就一个文本字符串"
-    stream = agent.stream(
-        input={"messages": [{"role": "user", "content": user_input}]},
-        config={"callbacks": [CallbackHandler()]},
-        stream_mode=["messages"],
-    )
+    # 创建 prompt_toolkit 会话
+    session = PromptSession("💬 你: ")
 
-    # 使用美化打印函数
-    print_stream(stream)
+    print("🤖 提示词生成助手已启动！输入 'exit' 或 'quit' 退出\n")
+
+    # 交互式对话循环
+    while True:
+        try:
+            # 获取用户输入（使用 prompt_toolkit，支持中文正确删除）
+            user_input = session.prompt().strip()
+
+            # 检查退出命令
+            if user_input.lower() in ["exit", "quit", "退出"]:
+                print("👋 再见！")
+                break
+
+            # 跳过空输入
+            if not user_input:
+                continue
+
+            # 执行 agent 流式输出
+            print("\n🤖 助手: ", end="", flush=True)
+            stream = agent.stream(
+                input={"messages": [{"role": "user", "content": user_input}]},
+                config={"callbacks": [CallbackHandler()], "configurable": {"thread_id": "test_session"}},
+                stream_mode=["messages"],
+            )
+
+            # 使用美化打印函数
+            print_stream(stream)
+
+        except KeyboardInterrupt:
+            print("\n\n👋 再见！")
+            break
+        except EOFError:
+            # Ctrl+D 退出
+            print("\n\n👋 再见！")
+            break
+        except Exception as e:
+            print(f"\n❌ 发生错误: {e}")
+            continue

@@ -12,5 +12,6 @@ dependencies = [
     "langchain-deepseek>=1.0.1",
     "langchain-openai>=1.1.7",
     "langfuse>=3.12.1",
+    "prompt-toolkit>=3.0.52",
     "python-dotenv>=1.2.1",
 ]
